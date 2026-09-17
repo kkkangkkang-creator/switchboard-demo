@@ -63,3 +63,10 @@ assert.equal(tracker.result.phase, 'unknown', 'chat change discards result');
 tracker.begin('B'); tracker.capture('A', [entry]);
 assert.equal(tracker.result.entries.length, 0, 'other chat ignored');
 console.log('PASS: preset/character/chat scopes, migration, native defaults, deletion, activation zero/failure/reset and minimal snapshots');
+
+const separator = { ...p, id: 'separator-test', separator: true, state: true };
+writeScopedState(settings, a, 'Alice', 'P', { version: 1, items: [separator] });
+const separatorRead = read(a).items[0];
+assert.equal(separatorRead.separator, true);
+assert.equal(separatorRead.state, null, 'separator cannot inject a prompt toggle');
+console.log('PASS: separator normalization and scoped persistence');

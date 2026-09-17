@@ -120,3 +120,16 @@
     .csb-panel .csb-row-actions .csb-action-icon { min-width:36px; width:36px; min-height:40px; height:40px; }
     .csb-panel input.csb-search,.csb-dialog input:not([type=checkbox]) { font-size:16px; }
 }
+
+/* Small organize actions and movable, non-interactive separators. */
+.csb-bulk { gap:5px; margin-bottom:5px; }
+.csb-panel .csb-bulk button { padding:3px 7px; min-height:26px; font-size:11px; }
+.csb-divider-section { margin:0; }
+.csb-divider { display:flex; align-items:center; gap:6px; min-height:8px; padding:3px 0; }
+.csb-divider-line { flex:1; min-width:0; border-top:1px solid var(--csb-muted); opacity:.55; }
+.csb-divider.is-editing { min-height:26px; padding:0; }
+.csb-divider .csb-row-actions .csb-action-icon { height:26px; min-height:26px; }
+@media(pointer:coarse) {
+    .csb-panel .csb-bulk button { min-height:32px; }
+    .csb-divider .csb-row-actions .csb-action-icon { height:32px; min-height:32px; }
+}

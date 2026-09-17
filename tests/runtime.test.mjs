@@ -1,4 +1,5 @@
 import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 import * as core from '../core.mjs';
@@ -8,7 +9,7 @@ import * as activation from '../activation.mjs';
 
 // In-memory DOM/event model. No browser, local server, network, or layout engine.
 class Element {
- constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attrs={};this.handlers={};this.style={setProperty:(k,v,p)=>{(this.style.values??={})[k]=v}};this.className='';this._text='';this.hidden=false;this.value='';this.scrollTop=0;this.classList={toggle:(c,on)=>{const s=new Set(this.className.split(' '));on?s.add(c):s.delete(c);this.className=[...s].join(' ')}};}
+ constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attrs={};this.handlers={};this.style={setProperty:(k,v,p)=>{(this.style.values??={})[k]=v}};this.className='';this._text='';this.hidden=false;this.value='';this.scrollTop=0;this.classList={add:c=>{this.classList.toggle(c,true)},toggle:(c,on)=>{const s=new Set(this.className.split(' '));on?s.add(c):s.delete(c);this.className=[...s].join(' ')}};}
  set textContent(s){this._text=String(s);this.children=[];} get textContent(){return this._text+this.children.map(x=>x.textContent).join('');}
  append(...nodes){for(const n of nodes){this.children.push(n);n.parent=this;}}
  replaceChildren(...nodes){this.children=[];this.append(...nodes);}
@@ -40,7 +41,7 @@ Object.assign(manager, {
 });
 const originalSettings=JSON.stringify(manager.serviceSettings);
 let timerId=0;const timers=new Map();const notices=[];
-const c=vm.createContext({document,URL,console,structuredClone,setTimeout:f=>{timers.set(++timerId,f);return timerId},clearTimeout:id=>timers.delete(id),SillyTavern:{getContext:()=>({extensionSettings,saveSettingsDebounced:()=>{settingsSaves++;},mainApi:'openai',name2:'테스트',characterId:0,characters:[{avatar:character}],getCurrentChatId:()=>chat,getPresetManager:()=>({getSelectedPresetName:()=>preset}),chatMetadata:chats[chat],saveMetadata:async()=>{saves.push({chat,state:structuredClone(chats[chat])})}})},toastr:{info:m=>notices.push(m),error:m=>notices.push(m)}});
+const c=vm.createContext({document,URL,console,structuredClone,crypto:webcrypto,setTimeout:f=>{timers.set(++timerId,f);return timerId},clearTimeout:id=>timers.delete(id),SillyTavern:{getContext:()=>({extensionSettings,saveSettingsDebounced:()=>{settingsSaves++;},mainApi:'openai',name2:'테스트',characterId:0,characters:[{avatar:character}],getCurrentChatId:()=>chat,getPresetManager:()=>({getSelectedPresetName:()=>preset}),chatMetadata:chats[chat],saveMetadata:async()=>{saves.push({chat,state:structuredClone(chats[chat])})}})},toastr:{info:m=>notices.push(m),error:m=>notices.push(m)}});
 const synthetic=o=>new vm.SyntheticModule(Object.keys(o),function(){for(const [k,v]of Object.entries(o))this.setExport(k,v)},{context:c});
 const modules={
  '../../../../script.js':synthetic({eventSource,event_types:types,isGenerating:()=>busy,stopGeneration:()=>{busy=false;stops++;eventSource.emit(types.GENERATION_STOPPED)}}),
@@ -93,3 +94,31 @@ entry.namespace.onDisable();assert.equal(find('.csb-launcher'),null);assert.ok(O
 entry.namespace.onEnable();await flush();assert.equal(find('.csb-badge').hidden,true);assert.equal(document.body.querySelectorAll('.csb-launcher').length,1);
 assert.deepEqual(notices,[]);
 console.log('PASS: integrated DOM/event simulation: presets, character registries, chat overrides, auto-registration, badge, zero, failure, dry-run, quiet, swipe, original preservation and lifecycle');
+
+await find('.csb-launcher').fire('click');await flush();
+await find('[data-tab="world"]').fire('click');await find('[data-world-view="manage"]').fire('click');await flush();
+await find('[data-action="reset"]').fire('click');assert.ok(button('확인'));await button('확인').fire('click');await flush();
+assert.equal(find('[role="switch"]').textContent,'ON','toolbar reset restores native world state');
+await find('[data-action="edit"]').fire('click');
+assert.deepEqual(find('.csb-bulk').querySelectorAll('button').map(x=>x.textContent),['모두 삭제','구분선 추가']);
+await button('구분선 추가').fire('click');await flush();
+assert.equal(document.body.querySelectorAll('.csb-divider').length,1);
+assert.equal(find('.csb-divider').querySelector('[role="switch"]'),null);
+const stored=()=>scopes.readScopedState(extensionSettings[core.KEY],chats[chat],JSON.stringify(['character',character]),JSON.stringify(['openai',preset]));
+assert.equal(stored().items.filter(x=>x.kind==='world').at(-1).separator,true);
+await find('.csb-divider').querySelector('[data-row-action="up"]').fire('click');await flush();
+assert.equal(stored().items.filter(x=>x.kind==='world')[0].separator,true,'separator moves above book entry');
+await find('.csb-divider').querySelector('[data-row-action="down"]').fire('click');await flush();
+assert.equal(stored().items.filter(x=>x.kind==='world').at(-1).separator,true);
+await find('[data-action="edit"]').fire('click');assert.equal(find('.csb-divider').querySelector('button'),null,'line only outside organize mode');
+chat='B';await eventSource.emit(types.CHAT_CHANGED);await flush();assert.ok(find('.csb-divider'),'character registry retains separator in another chat');
+await find('[data-action="edit"]').fire('click');await button('모두 삭제').fire('click');await button('확인').fire('click');await flush();
+assert.equal(stored().items.filter(x=>x.kind==='world').length,0);
+assert.equal(originalWorld.disable,false,'clear never deletes native book');
+await find('[data-tab="prompt"]').fire('click');await find('[data-action="edit"]').fire('click');
+await button('구분선 추가').fire('click');await flush();assert.ok(find('.csb-divider'));
+await find('[data-action="reset"]').fire('click');await button('확인').fire('click');await flush();
+assert.equal(manager.isPromptDisabledForActiveCharacter('a'),false,'prompt reset restores original');
+assert.ok(stored().items.some(x=>x.separator),'reset preserves separators');
+assert.deepEqual(notices,[]);
+console.log('PASS: toolbar reset, compact organize actions, separator add/move/persistence, no toggle, and clear');

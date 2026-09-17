@@ -263,7 +263,7 @@ async function openPicker() {
 function openBulk(action) {
     if (!chatKey() || isGenerating() || saving) return;
     const chat = chatKey(), kind = tab;
-    const d = modal(action === 'clear' ? '선택 항목 비우기' : 'ON/OFF 초기화');
+    const d = modal(action === 'clear' ? '모두 삭제' : 'ON/OFF 초기화');
     d.append(el('p', 'csb-muted', `${scopeLabel()} · ${kind === 'prompt' ? '프리셋' : '월드인포'} 탭 전체 (검색으로 숨겨진 항목 포함)`));
     d.append(el('p', '', action === 'clear' ? '공유 등록 목록에서 제거합니다. 원본과 저장한 조합은 유지됩니다.' : '목록과 주입 방식은 유지하고 ON/OFF는 원본을 따릅니다.'));
     d.append(button('취소', closeDialog, 'csb-quiet'), button('확인', async () => {
@@ -288,7 +288,8 @@ function openCombinations() {
         if (all.some(x => x.source === source && x.name === label)) return notify('같은 이름이 있어요. 다른 이름으로 저장하거나 기존 조합을 삭제해주세요.');
         const effective = indexItems(effectiveState().items);
         const originals = indexItems(promptCatalog());
-        const items = readState().items.filter(x => x.kind === 'prompt' && x.source === source).map(x => ({ ...x,
+        const ordered = readState().items.filter(item => item.kind === tab);
+    const items = ordered.filter(x => x.kind === 'prompt' && x.source === source).map(x => ({ ...x,
             state: effective.get(keyOf(x))?.state ?? originals.get(keyOf(x))?.enabled ?? null }));
         if (!items.length) return notify('먼저 프롬프트 항목을 추가해주세요.');
         saving = true; closeDialog(); render();
@@ -321,13 +322,37 @@ function openCombinations() {
     d.append(list, el('p', 'csb-muted', '불러오면 선택한 범위에서 현재 프리셋의 목록과 ON/OFF가 교체됩니다. 조합은 다른 채팅에서도 사용할 수 있습니다.'));
 }
 
+function addSeparator() {
+    if (!chatKey() || (tab === 'prompt' && !presetKey())) return;
+    const kind = tab, source = kind === 'prompt' ? presetKey() : '';
+    changeState(s => s.items.push({ kind, source, id: `separator-${globalThis.crypto.randomUUID()}`,
+        name: '구분선', separator: true, state: null, activation: null }));
+}
+function rowActions(item, busy, ordered) {
+    const key = keyOf(item), index = ordered.findIndex(x => keyOf(x) === key);
+    const actions = el('div', 'csb-row-actions');
+    const specs = [
+        ...(!item.separator ? [['edit', '이름·구획 변경', 'fa-feather', () => editItem(item)]] : []),
+        ['up', '위로 이동', 'fa-arrow-up', () => changeState(s => moveItem(s, key, -1))],
+        ['down', '아래로 이동', 'fa-arrow-down', () => changeState(s => moveItem(s, key, 1))],
+        ['remove', '제거', 'fa-trash-can', () => changeState(s => { s.items = s.items.filter(x => keyOf(x) !== key); })],
+    ];
+    for (const [id, label, icon, action] of specs) {
+        const b = button('', action, 'csb-action-icon', label);
+        const glyph = el('i', `fa-solid ${icon}`); glyph.setAttribute('aria-hidden', 'true'); b.append(glyph);
+        b.dataset.rowAction = id; b.setAttribute('aria-label', `${item.alias || item.name} · ${label}`);
+        b.disabled = busy || (id === 'up' && index === 0) || (id === 'down' && index === ordered.length - 1);
+        actions.append(b);
+    }
+    return actions;
+}
 const itemGroup = item => item.group || (item.kind === 'world' ? item.source : '');
 function moveItem(state, key, direction) {
     const index = state.items.findIndex(item => keyOf(item) === key), item = state.items[index];
     if (!item) return;
     for (let next = index + direction; next >= 0 && next < state.items.length; next += direction) {
         const other = state.items[next];
-        if (other.kind === item.kind && itemGroup(other) === itemGroup(item)) {
+        if (other.kind === item.kind) {
             [state.items[index], state.items[next]] = [other, item];
             break;
         }
@@ -349,6 +374,7 @@ function render() {
     status.textContent = saving ? '설정 저장 중…' : isGenerating() ? '생성 중 · 변경 잠금' : '변경은 다음 생성부터 적용';
     panel.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('is-active', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
     panel.querySelector('[data-action="edit"]').textContent = editing ? '완료' : '정리';
+    panel.querySelector('[data-action="reset"]').disabled = !hasChat || busy;
     panel.querySelector('[data-action="add"]').disabled = !hasChat || busy || (tab === 'prompt' ? Boolean(adapterError) || !presetKey() : !hasWorldHook);
     const currentSource = panel.querySelector('.csb-source');
     currentSource.textContent = tab === 'prompt' ? presetName() || 'Chat Completion 프리셋을 선택해주세요' : '현재 연결된 월드인포';
@@ -359,12 +385,13 @@ function render() {
     if (activeView) { renderActivated(busy, error); body.scrollTop = previousScroll; return; }
     const query = search.toLocaleLowerCase();
     const originals = indexItems(tab === 'prompt' ? promptCatalog(true) : worldChat === chatKey() ? worldCatalog : []);
-    const items = readState().items.filter(item => item.kind === tab && (tab !== 'world' || editing || originals.has(keyOf(item))) && !originals.get(keyOf(item))?.heading && `${item.alias} ${item.name} ${item.group} ${item.source} ${originals.get(keyOf(item))?.sectionTitle || ''}`.toLocaleLowerCase().includes(query));
+    const ordered = readState().items.filter(item => item.kind === tab);
+    const items = ordered.filter(item => item.kind === tab && (item.separator || tab !== 'world' || editing || originals.has(keyOf(item))) && !originals.get(keyOf(item))?.heading && `${item.alias} ${item.name} ${item.group} ${item.source} ${originals.get(keyOf(item))?.sectionTitle || ''}`.toLocaleLowerCase().includes(query));
     const effectiveItems = editing ? null : indexItems(effectiveState().items);
     if (editing) {
         const actions = el('div', 'csb-bulk');
-        for (const [label, action] of [['ON/OFF 초기화', 'reset'], ['선택 항목 비우기', 'clear']]) {
-            const b = button(label, () => openBulk(action), 'csb-quiet'); b.disabled = busy; actions.append(b);
+        for (const [label, action] of [['모두 삭제', 'clear'], ['구분선 추가', 'separator']]) {
+            const b = button(label, () => action === 'separator' ? addSeparator() : openBulk(action), 'csb-quiet'); b.disabled = busy || (tab === 'prompt' && !presetKey()); actions.append(b);
         }
         body.append(actions);
     }
@@ -373,17 +400,27 @@ function render() {
         empty.append(el('strong', '', search ? '검색 결과가 없어요' : '자주 바꾸는 항목만 골라두세요'), el('p', '', search ? '다른 검색어를 입력해보세요.' : '위의 항목 추가 버튼에서 여러 개를 한 번에 선택할 수 있어요.'));
         body.append(empty);
     }
-    const groups = new Map();
+    // Preserve saved order, including separators between entries from the same book.
+    const groups = [];
     for (const item of items) {
-        const group = itemGroup(item);
-        if (!groups.has(group)) groups.set(group, []);
-        groups.get(group).push(item);
+        const group = item.separator ? '' : itemGroup(item);
+        const previous = groups.at(-1);
+        if (item.separator || !previous || previous[0] !== group || previous[1].at(-1)?.separator) groups.push([group, [item]]);
+        else previous[1].push(item);
     }
     for (const [group, members] of groups) {
         const section = el('section', 'csb-section');
         if (group) section.append(el('h4', '', group));
         let previousSection = '';
-        for (const [index, item] of members.entries()) {
+        for (const item of members) {
+            if (item.separator) {
+                section.classList.add('csb-divider-section');
+                const divider = el('div', `csb-divider${editing ? ' is-editing' : ''}`);
+                const line = el('span', 'csb-divider-line'); line.setAttribute('role', 'separator'); line.setAttribute('aria-label', '구분선');
+                divider.append(line);
+                if (editing) divider.append(rowActions(item, busy, ordered));
+                section.append(divider); continue;
+            }
             const key = keyOf(item), native = originals.get(key);
             if (!group) previousSection = appendPresetHeadings(section, native, previousSection);
             const row = el('div', `csb-row${native ? '' : ' is-missing'}${editing ? ' is-editing' : ''}`);
@@ -417,21 +454,7 @@ function render() {
                 }
                 row.append(toggle);
             } else {
-                const actions = el('div', 'csb-row-actions');
-                const actionsList = [
-                    ['edit', '이름·구획 변경', 'fa-feather', () => editItem(item)],
-                    ['up', '위로 이동', 'fa-arrow-up', () => changeState(s => moveItem(s, key, -1))],
-                    ['down', '아래로 이동', 'fa-arrow-down', () => changeState(s => moveItem(s, key, 1))],
-                    ['remove', '제거', 'fa-trash-can', () => changeState(s => { s.items = s.items.filter(x => keyOf(x) !== key); })],
-                ];
-                for (const [id, label, icon, action] of actionsList) {
-                    const b = button('', action, 'csb-action-icon', label);
-                    const glyph = el('i', `fa-solid ${icon}`); glyph.setAttribute('aria-hidden', 'true'); b.append(glyph);
-                    b.dataset.rowAction = id; b.setAttribute('aria-label', `${item.alias || item.name} · ${label}`);
-                    b.disabled = busy || (id === 'up' && index === 0 && !search) || (id === 'down' && index === members.length - 1 && !search);
-                    actions.append(b);
-                }
-                row.append(actions);
+                row.append(rowActions(item, busy, ordered));
             }
             section.append(row);
         }
@@ -593,7 +616,8 @@ function buildUI() {
     const edit = button('정리', () => { editing = !editing; render(); }, 'csb-quiet'); edit.dataset.action = 'edit';
     const combinations = button('조합', openCombinations, 'csb-quiet', '프롬프트 ON/OFF 조합'); combinations.dataset.action = 'combos';
     const searchButton = button('⌕', () => { showSearch = !showSearch; if (!showSearch) { search = ''; input.value = ''; } render(); if (showSearch) input.focus(); }, 'csb-quiet', '검색');
-    toolbar.append(add, combinations, searchButton, button('↻', () => { ensureAdapter(); render(); refreshWorlds(); }, 'csb-quiet', '관리 목록 새로고침'), edit);
+    const reset = button('↻', () => openBulk('reset'), 'csb-quiet', 'ON/OFF 초기화'); reset.dataset.action = 'reset';
+    toolbar.append(add, combinations, searchButton, reset, edit);
     const source = el('p', 'csb-source csb-muted');
     const input = el('input', 'csb-search'); input.type = 'search'; input.placeholder = '제목 · 책 검색'; input.setAttribute('aria-label', '내 버튼 검색');
     input.addEventListener('input', () => { search = input.value; render(); });
