@@ -107,9 +107,6 @@
 .csb-panel select.csb-mode { flex-basis:28px; width:28px; height:28px; font-size:15px; }
 .csb-status { font-size:11px; padding-top:5px; }
 .csb-panel [hidden],#csb-floating-launcher .csb-badge[hidden] { display:none!important; }
-.csb-world-views { display:flex; gap:4px; }
-.csb-world-views button { background:transparent; color:var(--csb-muted); }
-.csb-world-views button.is-active { background:#e6ece5; color:#344e3b; }
 .csb-active-title { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
 .csb-active-mode { flex:0 0 26px; text-align:center; font-size:13px; }
 #csb-floating-launcher .csb-badge { position:absolute; top:0; right:-1px; display:block; min-width:17px; height:17px; padding:0 4px; border-radius:10px; background:#526b5b; color:#fff; border:1px solid #faf9f6; font:600 10px/15px system-ui,sans-serif; text-align:center; pointer-events:none; text-shadow:none; }
@@ -133,3 +130,5 @@
     .csb-panel .csb-bulk button { min-height:32px; }
     .csb-divider .csb-row-actions .csb-action-icon { height:32px; min-height:32px; }
 }
+
+.csb-tabs button { min-width:0; word-break:keep-all; }

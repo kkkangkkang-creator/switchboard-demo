@@ -39,6 +39,7 @@ window.toastr={info:m=>console.log(m),error:m=>{throw new Error(m)}};
  await page.goto('http://st.test/');
  await page.locator('.csb-launcher').click();
  assert.equal(await page.locator('.csb-badge').isVisible(),false);
+ await page.locator('[data-tab=prompt]').click();
  // Register and toggle a prompt, then use it in another character/chat.
  await page.locator('[data-action=add]').click();
  await page.locator('.csb-choice input').first().check();
@@ -54,7 +55,7 @@ window.toastr={info:m=>console.log(m),error:m=>{throw new Error(m)}};
  assert.equal(await page.locator('.csb-switch').count(),0);
  await page.evaluate(async()=>{await window.switchPreset('기본 서술');await window.switchChat('A')});
  await page.locator('[data-tab=world]').click();
- await page.locator('[data-world-view=active]').click();
+ await page.locator('[data-tab=active]').click();
  await page.evaluate(async()=>{window.busy=true;await events.emit('GENERATION_AFTER_COMMANDS','normal',{},false);await events.emit('WORLD_INFO_ACTIVATED',books);await events.emit('GENERATE_AFTER_DATA',{},false);window.busy=false;await events.emit('GENERATION_ENDED')});
  await page.waitForTimeout(160);
  assert.equal(await page.locator('.csb-badge').innerText(),'3');
@@ -63,7 +64,7 @@ window.toastr={info:m=>console.log(m),error:m=>{throw new Error(m)}};
  await page.locator('.csb-switch').first().click();
  assert.equal(await page.locator('.csb-switch').first().innerText(),'OFF');
  assert.equal(await page.locator('.csb-badge').innerText(),'3','toggle does not rewrite generation count');
- await page.locator('[data-world-view=manage]').click();
+ await page.locator('[data-tab=world]').click();
  assert.equal(await page.locator('.csb-switch').count(),1,'toggle auto-registers');
  assert.equal(await page.locator('.csb-switch').innerText(),'OFF');
  await page.evaluate(()=>window.switchChat('B'));
@@ -76,7 +77,7 @@ window.toastr={info:m=>console.log(m),error:m=>{throw new Error(m)}};
  await page.evaluate(()=>window.switchChat('A'));
  await page.waitForTimeout(180);
  assert.equal(await page.locator('.csb-switch').innerText(),'OFF');
- await page.locator('[data-world-view=active]').click();
+ await page.locator('[data-tab=active]').click();
  assert.equal(await page.locator('.csb-active-title').count(),0,'returning chat has no cached activation');
  // Successful zero, then early failure, then dry-run/quiet must not invent a result.
  await page.evaluate(async()=>{await events.emit('GENERATION_AFTER_COMMANDS','normal',{},false);await events.emit('GENERATE_AFTER_DATA',{},false);await events.emit('GENERATION_ENDED')});
@@ -96,7 +97,7 @@ window.toastr={info:m=>console.log(m),error:m=>{throw new Error(m)}};
   const fits=await page.locator('.csb-body').evaluate(el=>el.scrollWidth<=el.clientWidth+1);assert.equal(fits,true,'no horizontal overflow');
  }
  await page.setViewportSize({width:390,height:844});
- if(process.env.CSB_SCREENSHOT_DIR){await page.screenshot({path:path.join(process.env.CSB_SCREENSHOT_DIR,'active-mobile.png')});await page.locator('[data-world-view=manage]').click();await page.screenshot({path:path.join(process.env.CSB_SCREENSHOT_DIR,'manage-mobile.png')})}
+ if(process.env.CSB_SCREENSHOT_DIR){await page.screenshot({path:path.join(process.env.CSB_SCREENSHOT_DIR,'active-mobile.png')});await page.locator('[data-tab=world]').click();await page.screenshot({path:path.join(process.env.CSB_SCREENSHOT_DIR,'manage-mobile.png')})}
  // Disable removes listeners/UI, enable does not duplicate subscriptions or retain count.
  await page.evaluate(async()=>{const ext=await import('/scripts/extensions/third-party/chat-switchboard/index.js');ext.onDisable();ext.onEnable()});
  assert.equal(await page.locator('.csb-launcher').count(),1);

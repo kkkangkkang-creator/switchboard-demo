@@ -52,9 +52,11 @@ await entry.link(name=>modules[name]);await entry.evaluate();
 const flush=async()=>{for(const [id,fn]of [...timers]){timers.delete(id);await fn();}await new Promise(r=>setImmediate(r));};
 const find=(s)=>document.body.querySelector(s);
 const button=t=>document.body.querySelectorAll('button').find(b=>b.textContent===t);
-async function add(kind,index){if(kind==='world')await find('[data-tab="world"]').fire('click');await button('＋ 추가').fire('click');const d=find('.csb-dialog');assert.ok(d);const boxes=d.querySelectorAll('input').filter(x=>x.type==='checkbox');boxes[index].checked=true;await boxes[index].fire('change');await button('1개 추가').fire('click');}
+async function add(kind,index){await find(`[data-tab="${kind}"]`).fire('click');await button('＋ 추가').fire('click');const d=find('.csb-dialog');assert.ok(d);const boxes=d.querySelectorAll('input').filter(x=>x.type==='checkbox');boxes[index].checked=true;await boxes[index].fire('change');await button('1개 추가').fire('click');}
 
 await find('.csb-launcher').fire('click'); await flush();
+assert.deepEqual(document.body.querySelectorAll('[data-tab]').map(x=>x.dataset.tab),['active','prompt','world']);
+assert.equal(find('[data-tab="active"]').getAttribute('aria-selected'),'true');
 await add('prompt',1);
 await find('[role="switch"]').fire('click');
 assert.equal(manager.isPromptDisabledForActiveCharacter('a'),true);
@@ -65,7 +67,7 @@ preset='Q';await eventSource.emit(types.OAI_PRESET_CHANGED_AFTER);await flush();
 assert.equal(find('[role="switch"]'),null);
 preset='P';chat='A';character='c.png';await eventSource.emit(types.CHAT_CHANGED);await flush();
 await find('[data-tab="world"]').fire('click');await flush();
-await find('[data-world-view="active"]').fire('click');
+await find('[data-tab="active"]').fire('click');
 assert.equal(find('.csb-badge').hidden,true);
 busy=true;await eventSource.emit(types.GENERATION_AFTER_COMMANDS,'normal',{},false);
 await eventSource.emit(types.WORLD_INFO_ACTIVATED,[originalWorld]);await eventSource.emit(types.GENERATE_AFTER_DATA,{},false);await flush();
@@ -74,7 +76,7 @@ busy=false;await eventSource.emit(types.GENERATION_ENDED);await flush();
 assert.equal(find('.csb-item-copy'),null);
 await find('[role="switch"]').fire('click');await flush();
 assert.equal(find('[role="switch"]').textContent,'OFF');assert.equal(find('.csb-badge').textContent,'1');
-await find('[data-world-view="manage"]').fire('click');
+await find('[data-tab="world"]').fire('click');
 assert.equal(find('[role="switch"]').textContent,'OFF');
 assert.equal((await getSortedEntries())[0].disable,true);
 chat='B';await eventSource.emit(types.CHAT_CHANGED);await flush();
@@ -82,7 +84,7 @@ assert.equal(find('[role="switch"]').textContent,'ON');assert.equal(find('.csb-b
 assert.equal((await getSortedEntries())[0].disable,false);
 chat='C';character='other.png';await eventSource.emit(types.CHAT_CHANGED);await flush();assert.equal(find('[role="switch"]'),null);
 chat='A';character='c.png';await eventSource.emit(types.CHAT_CHANGED);await flush();assert.equal(find('[role="switch"]').textContent,'OFF');
-await find('[data-world-view="active"]').fire('click');assert.equal(find('.csb-active-title'),null);
+await find('[data-tab="active"]').fire('click');assert.equal(find('.csb-active-title'),null);
 await eventSource.emit(types.GENERATION_AFTER_COMMANDS,'normal',{},false);await eventSource.emit(types.GENERATE_AFTER_DATA,{},false);await eventSource.emit(types.GENERATION_ENDED);await flush();
 assert.equal(find('.csb-badge').textContent,'0');assert.equal(find('.csb-badge').hidden,false);
 await eventSource.emit(types.GENERATION_AFTER_COMMANDS,'normal',{},false);await eventSource.emit(types.GENERATION_STOPPED);await flush();assert.equal(find('.csb-badge').hidden,true);
@@ -96,7 +98,7 @@ assert.deepEqual(notices,[]);
 console.log('PASS: integrated DOM/event simulation: presets, character registries, chat overrides, auto-registration, badge, zero, failure, dry-run, quiet, swipe, original preservation and lifecycle');
 
 await find('.csb-launcher').fire('click');await flush();
-await find('[data-tab="world"]').fire('click');await find('[data-world-view="manage"]').fire('click');await flush();
+await find('[data-tab="world"]').fire('click');await find('[data-tab="world"]').fire('click');await flush();
 await find('[data-action="reset"]').fire('click');assert.ok(button('확인'));await button('확인').fire('click');await flush();
 assert.equal(find('[role="switch"]').textContent,'ON','toolbar reset restores native world state');
 await find('[data-action="edit"]').fire('click');
